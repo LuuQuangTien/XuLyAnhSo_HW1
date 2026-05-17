@@ -1,8 +1,9 @@
-import tkinter as tk
-from HW2 import HW2
+import customtkinter as ctk
 
-root = tk.Tk()
-root.title("23110157_HW")
-app = HW2(root)
+from UI import AppUI
 
-root.mainloop()
+if __name__ == "__main__":
+    root = ctk.CTk()
+    root.title("23110157_HW")
+    app = AppUI(root)
+    root.mainloop()
