@@ -4,7 +4,6 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 from .UIConfig import UIConfig
 
-
 class AttributeUI:
     def setup_action_panel(self):
         self.operation_titles = {
@@ -24,6 +23,12 @@ class AttributeUI:
             "sobel": "Loc Sobel",
             "robert": "Loc Robert",
             "prewitt": "Loc Prewitt",
+            "freq_ideal_lowpass": "Ideal Lowpass",
+            "freq_butterworth_lowpass": "Butterworth Lowpass",
+            "freq_gaussian_lowpass": "Gaussian Lowpass",
+            "freq_ideal_highpass": "Ideal Highpass",
+            "freq_butterworth_highpass": "Butterworth Highpass",
+            "freq_gaussian_highpass": "Gaussian Highpass",
         }
 
     def add_slider(self, key, label_text, from_val, to_val, default_val, is_int=False):
@@ -108,6 +113,11 @@ class AttributeUI:
         elif op_name == "gaussian":
             self.add_slider("ksize", "Kernel Size", 1, 31, 3, is_int=True)
             self.add_slider("sigma", "Sigma", 0.1, 10.0, 1.0)
+        elif op_name in ["freq_ideal_lowpass", "freq_gaussian_lowpass", "freq_ideal_highpass", "freq_gaussian_highpass"]:
+            self.add_slider("d0", "Cutoff D0", 1, 300, 30, is_int=True)
+        elif op_name in ["freq_butterworth_lowpass", "freq_butterworth_highpass"]:
+            self.add_slider("d0", "Cutoff D0", 1, 300, 30, is_int=True)
+            self.add_slider("n", "Order n", 1, 10, 2, is_int=True)
 
         self.slider_frame.pack_forget()
         self.action_frame.pack_forget()
@@ -140,7 +150,7 @@ class AttributeUI:
                 s2=vals.get("s2", 230),
             )
         elif self.current_op == "gaussian":
-            res_cv = self.logic.gaussian_filter(ksize=vals.get("ksize", 3), sigma=vals.get("sigma", 1.0))
+            res_cv = self.logic.gaussian_frequency_filter(ksize=vals.get("ksize", 3), sigma=vals.get("sigma", 1.0))
         elif self.current_op == "box":
             res_cv = self.logic.box_filter(ksize=vals.get("ksize", 3))
         elif self.current_op == "median":
@@ -154,6 +164,18 @@ class AttributeUI:
             res_cv = self.logic.robert_filter()
         elif self.current_op == "prewitt":
             res_cv = self.logic.prewitt_filter()
+        elif self.current_op == "freq_ideal_lowpass":
+            res_cv = self.logic.ideal_frequency_filter(D0=vals.get("d0", 30), highpass=False)
+        elif self.current_op == "freq_butterworth_lowpass":
+            res_cv = self.logic.butterworth_frequency_filter(D0=vals.get("d0", 30), n=vals.get("n", 2), highpass=False, )
+        elif self.current_op == "freq_gaussian_lowpass":
+            res_cv = self.logic.gaussian_frequency_filter(D0=vals.get("d0", 30), highpass=False)
+        elif self.current_op == "freq_ideal_highpass":
+            res_cv = self.logic.ideal_frequency_filter(D0=vals.get("d0", 30), highpass=True)
+        elif self.current_op == "freq_butterworth_highpass":
+            res_cv = self.logic.butterworth_frequency_filter(D0=vals.get("d0", 30), n=vals.get("n", 2), highpass=True, )
+        elif self.current_op == "freq_gaussian_highpass":
+            res_cv = self.logic.gaussian_frequency_filter(D0=vals.get("d0", 30), highpass=True)
 
         if res_cv is not None:
             self.current_res_cv = res_cv
@@ -167,10 +189,16 @@ class AttributeUI:
 
     def apply_changes(self):
         if self.current_res_cv is not None:
-            self.logic.img_cv = self.current_res_cv
+            success = self.logic.apply_current_image(self.current_res_cv)
+            if not success:
+                messagebox.showerror("Loi", "Khong the cap nhat file anh goc.")
+                return
+            self.current_res_cv = self.logic.img_cv.copy()
             self.show_cv_image(self.logic.img_cv)
+            if hasattr(self, "refresh_thumbnail") and self.logic.current_image_name is not None:
+                self.refresh_thumbnail(self.logic.current_image_name)
             self.slider_frame.pack_forget()
-            self.action_frame.pack_forget()
+            self.show_action_bar()
             self.current_op = None
 
     def download_image(self):

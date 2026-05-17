@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 
-
 class HW1Logic:
     def get_RGB_Layer(self, width=None, height=None):
         if self.img_cv is None:

@@ -3,7 +3,6 @@ from tkinter import messagebox
 import customtkinter as ctk
 from .UIConfig import UIConfig
 
-
 class SidebarUI:
     def setup_sidebar(self):
         self.tool_panel = ctk.CTkScrollableFrame(
@@ -34,7 +33,7 @@ class SidebarUI:
                 ],
             ),
             (
-                "Lowpass Filtering",
+                "Lowpass Filtering (Spatial)",
                 [
                     ("Loc Gaussian", lambda: self.set_op("gaussian")),
                     ("Loc Trung Binh", lambda: self.set_op("box")),
@@ -42,7 +41,7 @@ class SidebarUI:
                 ],
             ),
             (
-                "Highpass Filtering",
+                "Highpass Filtering (Spatial)",
                 [
                     ("Laplace K1", lambda: self.set_op("laplacian_0")),
                     ("Laplace K2", lambda: self.set_op("laplacian_1")),
@@ -51,6 +50,22 @@ class SidebarUI:
                     ("Loc Sobel", lambda: self.set_op("sobel")),
                     ("Loc Robert", lambda: self.set_op("robert")),
                     ("Loc Prewitt", lambda: self.set_op("prewitt")),
+                ],
+            ),
+            (
+                "Lowpass Filtering (Frequency)",
+                [
+                    ("Loc Ideal", lambda: self.set_op("freq_ideal_lowpass")),
+                    ("Loc Butterworth", lambda: self.set_op("freq_butterworth_lowpass")),
+                    ("Loc Gaussian", lambda: self.set_op("freq_gaussian_lowpass")),
+                ],
+            ),
+            (
+                "Highpass Filtering (Frequency)",
+                [
+                    ("Loc Ideal", lambda: self.set_op("freq_ideal_highpass")),
+                    ("Loc Butterworth", lambda: self.set_op("freq_butterworth_highpass")),
+                    ("Loc Gaussian", lambda: self.set_op("freq_gaussian_highpass")),
                 ],
             ),
         ]
@@ -107,12 +122,14 @@ class SidebarUI:
             return
         self.hide_nav()
         gray_cv = self.logic.get_Grayscale()
+        self.current_res_cv = gray_cv
         self.show_cv_image(gray_cv)
 
     def rotate_update(self):
         if self.stop_rotate or self.degree >= 750:
             return
         rotated = self.logic.get_Rotate_img(self.degree, self.scale)
+        self.current_res_cv = rotated
         self.show_cv_image(rotated)
         self.degree += 15
         self.scale *= 0.9
@@ -128,6 +145,7 @@ class SidebarUI:
 
         def stop(e=None):
             self.stop_rotate = True
+            self.current_res_cv = None
             self.show_cv_image(self.logic.img_cv)
 
         self.root.bind("<Escape>", stop)
@@ -139,6 +157,7 @@ class SidebarUI:
         self.hide_nav()
         cropped = self.logic.get_Crop_img()
         if cropped is not None:
+            self.current_res_cv = cropped
             self.show_cv_image(cropped)
 
     def set_op(self, op_name):

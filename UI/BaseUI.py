@@ -7,12 +7,12 @@ from PIL import Image, ImageTk
 
 from .UIConfig import UIConfig
 
-
 class BaseUI:
     def __init__(self, root):
         self.root = root
         self.logic = None
         self.thumb_buttons = []
+        self.thumb_images = {}
         self.selected_thumb_name = None
         self.current_img = None
         self.current_pil_image = None
@@ -28,12 +28,11 @@ class BaseUI:
 
         self.root.configure(fg_color=UIConfig.COLOR_APP_BG)
         self.root.minsize(UIConfig.WINDOW_MIN_WIDTH, UIConfig.WINDOW_MIN_HEIGHT)
-        self.center(UIConfig.WINDOW_WIDTH, UIConfig.WINDOW_HEIGHT)
+        self.root.after(0, self.maximize_window)
 
-    def center(self, w, h):
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        self.root.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+    def maximize_window(self):
+        self.root.update_idletasks()
+        self.root.state("zoomed")
 
     def setup_base_layout(self):
         self.main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
@@ -517,6 +516,7 @@ class BaseUI:
         for widget in self.thumb_scroll_frame.winfo_children():
             widget.destroy()
         self.thumb_buttons.clear()
+        self.thumb_images.clear()
 
         folder_name = os.path.basename(path) or path
         self.thumb_title.configure(text=f"{folder_name}")
@@ -570,23 +570,40 @@ class BaseUI:
                     widget.bind("<Button-1>", lambda event, n=img: self.show_image(n))
 
                 card.image = thumb
-                self.thumb_buttons.append((img, card, text_label))
+                self.thumb_buttons.append((img, card, text_label, image_label))
+                self.thumb_images[img] = thumb
 
         self.show_thumbs()
 
     def show_action_bar(self):
         self.slider_frame.pack_forget()
+        self.action_title.configure(text="Tac vu anh")
         self.action_frame.pack(side="top", fill="x", padx=UIConfig.XSMALL_PAD, pady=(UIConfig.XSMALL_PAD, UIConfig.INNER_PAD))
 
     def mark_selected_thumbnail(self, image_name):
         self.selected_thumb_name = image_name
-        for name, btn, label in self.thumb_buttons:
+        for name, btn, label, image_label in self.thumb_buttons:
             if name == image_name:
                 btn.configure(fg_color=UIConfig.COLOR_PRIMARY_SOFT, border_color="#60a5fa")
                 label.configure(text_color=UIConfig.COLOR_TEXT_BLUE)
             else:
                 btn.configure(fg_color=UIConfig.COLOR_CARD_BG, border_color=UIConfig.COLOR_BORDER_SOFT)
                 label.configure(text_color=UIConfig.COLOR_TEXT_ALT)
+
+    def refresh_thumbnail(self, image_name):
+        for name, btn, label, image_label in self.thumb_buttons:
+            if name != image_name:
+                continue
+
+            pil_thumb = self.logic.get_thumbnail(image_name, size=UIConfig.THUMB_IMAGE_SIZE)
+            if pil_thumb is None:
+                return
+
+            thumb = ctk.CTkImage(light_image=pil_thumb, dark_image=pil_thumb, size=pil_thumb.size)
+            image_label.configure(image=thumb)
+            image_label.image = thumb
+            self.thumb_images[image_name] = thumb
+            return
 
     def show_image(self, name):
         self.logic.load_image(name)
@@ -606,6 +623,7 @@ class BaseUI:
             return
 
         self.rgb_title.configure(text=UIConfig.RGB_TITLES[self.rgb_page], text_color=UIConfig.RGB_COLORS[self.rgb_page])
+        self.current_res_cv = self.rgb_imgs[self.rgb_page]
         self.show_cv_image(self.rgb_imgs[self.rgb_page])
 
     def rgb_prev(self):
