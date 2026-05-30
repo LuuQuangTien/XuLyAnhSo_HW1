@@ -17,7 +17,7 @@ class BaseLogic:
         if folder_path != self.current_folder:
             self.edited_images.clear()
         self.current_folder = folder_path
-        valid_exts = (".png", ".jpg", ".jpeg", ".bmp")
+        valid_exts = (".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff")
         self.image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(valid_exts)]
         self.thumbnails_cache.clear()
         return self.image_files

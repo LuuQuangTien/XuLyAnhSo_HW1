@@ -10,7 +10,9 @@ class AppUI(BaseUI, AttributeUI, SidebarUI):
         self.current_op = None
         self.current_res_cv = None
         self.active_sliders = {}
+        self.active_selectors = {}
+        self.active_kernel_vars = []
         
         self.setup_base_layout()
-        self.setup_sidebar()
         self.setup_action_panel()
+        self.setup_sidebar()

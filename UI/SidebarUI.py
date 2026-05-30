@@ -1,94 +1,162 @@
 from tkinter import messagebox
 
 import customtkinter as ctk
+
 from .UIConfig import UIConfig
 
 class SidebarUI:
     def setup_sidebar(self):
-        self.tool_panel = ctk.CTkScrollableFrame(
-            self.left,
-            fg_color="transparent",
-            corner_radius=0,
-        )
-        self.tool_panel.pack(fill="both", expand=True, padx=UIConfig.SMALL_PAD, pady=(2, UIConfig.MAIN_PAD))
+        self.hw_groups = {
+            1: [
+                (
+                    "Quick Access",
+                    [
+                        ("Tach RGB", self.show_rgb),
+                        ("Chuyen Gray", self.show_gray),
+                        ("Rotate Demo", self.on_rotate),
+                        ("Cat 1/4 anh", self.show_crop),
+                    ],
+                )
+            ],
+            2: [
+                (
+                    "Tone",
+                    [
+                        ("Am anh", lambda: self.set_op("negative")),
+                        ("Bien doi Logarit", lambda: self.set_op("log")),
+                        ("Power-Law (Gamma)", lambda: self.set_op("gamma")),
+                        ("Histogram Equalization", lambda: self.set_op("hist")),
+                        ("Local Histogram", lambda: self.set_op("local_hist")),
+                    ],
+                ),
+                (
+                    "Spatial Blur",
+                    [
+                        ("Loc Gaussian", lambda: self.set_op("gaussian")),
+                        ("Loc Trung Binh", lambda: self.set_op("box")),
+                        ("Loc Trung Vi", lambda: self.set_op("median")),
+                    ],
+                ),
+                (
+                    "Edge Detect",
+                    [
+                        ("Laplace K1", lambda: self.set_op("laplacian_0")),
+                        ("Laplace K2", lambda: self.set_op("laplacian_1")),
+                        ("Laplace K3", lambda: self.set_op("laplacian_2")),
+                        ("Laplace K4", lambda: self.set_op("laplacian_3")),
+                        ("Loc Sobel", lambda: self.set_op("sobel")),
+                        ("Loc Robert", lambda: self.set_op("robert")),
+                        ("Loc Prewitt", lambda: self.set_op("prewitt")),
+                    ],
+                )
+            ],
+            3: [
+                (
+                    "Freq Lowpass",
+                    [
+                        ("Loc Ideal", lambda: self.set_op("freq_ideal_lowpass")),
+                        ("Loc Butterworth", lambda: self.set_op("freq_butterworth_lowpass")),
+                        ("Loc Gaussian", lambda: self.set_op("freq_gaussian_lowpass")),
+                    ],
+                ),
+                (
+                    "Freq Highpass",
+                    [
+                        ("Loc Ideal", lambda: self.set_op("freq_ideal_highpass")),
+                        ("Loc Butterworth", lambda: self.set_op("freq_butterworth_highpass")),
+                        ("Loc Gaussian", lambda: self.set_op("freq_gaussian_highpass")),
+                    ],
+                )
+            ],
+            4: [
+                (
+                    "Morphology Basic",
+                    [
+                        ("Erosion", lambda: self.set_op("erosion")),
+                        ("Dilation", lambda: self.set_op("dilation")),
+                        ("Opening", lambda: self.set_op("opening")),
+                        ("Closing", lambda: self.set_op("closing")),
+                        ("Hit-or-Miss", lambda: self.set_op("hitmiss")),
+                    ],
+                ),
+                (
+                    "Morphology Advanced",
+                    [
+                        ("Boundary Extraction", lambda: self.set_op("boundary")),
+                        ("Region Filling", lambda: self.set_op("region_fill")),
+                        ("Connected Components", lambda: self.set_op("connected_comp")),
+                        ("Convex Hull", lambda: self.set_op("convex_hull")),
+                        ("Thinning", lambda: self.set_op("thinning")),
+                        ("Thickening", lambda: self.set_op("thickening")),
+                    ],
+                )
+            ],
+            5: []
+        }
 
-        groups = [
-            (
-                "Basic Operations",
-                [
-                    ("Tach RGB", self.show_rgb),
-                    ("Chuyen Gray", self.show_gray),
-                    ("Rotate Demo", self.on_rotate),
-                    ("Cat 1/4 anh", self.show_crop),
-                ],
-            ),
-            (
-                "Grayscale Transformation",
-                [
-                    ("Am anh", lambda: self.set_op("negative")),
-                    ("Bien doi Logarit", lambda: self.set_op("log")),
-                    ("Power-Law (Gamma)", lambda: self.set_op("gamma")),
-                    ("Histogram Equalization", lambda: self.set_op("hist")),
-                    ("Local Histogram", lambda: self.set_op("local_hist")),
-                ],
-            ),
-            (
-                "Lowpass Filtering (Spatial)",
-                [
-                    ("Loc Gaussian", lambda: self.set_op("gaussian")),
-                    ("Loc Trung Binh", lambda: self.set_op("box")),
-                    ("Loc Trung Vi", lambda: self.set_op("median")),
-                ],
-            ),
-            (
-                "Highpass Filtering (Spatial)",
-                [
-                    ("Laplace K1", lambda: self.set_op("laplacian_0")),
-                    ("Laplace K2", lambda: self.set_op("laplacian_1")),
-                    ("Laplace K3", lambda: self.set_op("laplacian_2")),
-                    ("Laplace K4", lambda: self.set_op("laplacian_3")),
-                    ("Loc Sobel", lambda: self.set_op("sobel")),
-                    ("Loc Robert", lambda: self.set_op("robert")),
-                    ("Loc Prewitt", lambda: self.set_op("prewitt")),
-                ],
-            ),
-            (
-                "Lowpass Filtering (Frequency)",
-                [
-                    ("Loc Ideal", lambda: self.set_op("freq_ideal_lowpass")),
-                    ("Loc Butterworth", lambda: self.set_op("freq_butterworth_lowpass")),
-                    ("Loc Gaussian", lambda: self.set_op("freq_gaussian_lowpass")),
-                ],
-            ),
-            (
-                "Highpass Filtering (Frequency)",
-                [
-                    ("Loc Ideal", lambda: self.set_op("freq_ideal_highpass")),
-                    ("Loc Butterworth", lambda: self.set_op("freq_butterworth_highpass")),
-                    ("Loc Gaussian", lambda: self.set_op("freq_gaussian_highpass")),
-                ],
-            ),
-        ]
+        self.select_hw(1)
+
+    def select_hw(self, hw_num):
+        self.active_hw = hw_num
+        for idx, btn in self.hw_buttons.items():
+            if idx == hw_num:
+                btn.configure(
+                    fg_color=UIConfig.COLOR_TOOL_ACTIVE,
+                    hover_color=UIConfig.COLOR_PRIMARY_HOVER,
+                    border_width=0,
+                    text_color=UIConfig.COLOR_TEXT
+                )
+            else:
+                btn.configure(
+                    fg_color="transparent",
+                    hover_color=UIConfig.COLOR_TOOL_HOVER,
+                    border_width=1,
+                    border_color=UIConfig.COLOR_BORDER,
+                    text_color=UIConfig.COLOR_TEXT_ALT
+                )
+
+        self.current_op = None
+        if hasattr(self, "slider_frame"):
+            self.slider_frame.pack_forget()
+
+        # Destroy old tool groups
+        if hasattr(self, "tool_group_widgets"):
+            for widget in self.tool_group_widgets:
+                widget.destroy()
+            self.tool_group_widgets.clear()
+
+        groups = self.hw_groups.get(hw_num, [])
+        if not groups:
+            placeholder = ctk.CTkLabel(
+                self.action_panel,
+                text=f"HW{hw_num} has no tools assigned.",
+                text_color=UIConfig.COLOR_TEXT_MUTED,
+                font=ctk.CTkFont(size=UIConfig.FONT_BODY, slant="italic"),
+            )
+            placeholder.pack(pady=40)
+            self.tool_group_widgets.append(placeholder)
+            return
 
         for title, actions in groups:
-            self._add_group(title, actions)
+            self._add_group_to_container(title, actions)
 
-    def _add_group(self, title, actions):
+    def _add_group_to_container(self, title, actions):
         group = ctk.CTkFrame(
-            self.tool_panel,
-            fg_color="#ffffff",
+            self.action_panel,
+            fg_color=UIConfig.COLOR_CARD_BG,
             corner_radius=UIConfig.GROUP_CORNER,
             border_width=UIConfig.BORDER_WIDTH,
             border_color=UIConfig.COLOR_BORDER_SOFT,
         )
-        group.pack(fill="x", padx=4, pady=(0, 14))
+        group.pack(fill="x", padx=2, pady=(0, 10))
+        self.tool_group_widgets.append(group)
 
         ctk.CTkLabel(
             group,
             text=title,
-            font=ctk.CTkFont(size=15, weight="bold"),
+            font=ctk.CTkFont(size=UIConfig.FONT_GROUP, weight="bold"),
             text_color=UIConfig.COLOR_TEXT,
-        ).pack(anchor="w", padx=UIConfig.MAIN_PAD, pady=(14, UIConfig.SMALL_PAD))
+        ).pack(anchor="w", padx=UIConfig.INNER_PAD, pady=(8, 6))
 
         for text, command in actions:
             ctk.CTkButton(
@@ -99,9 +167,10 @@ class SidebarUI:
                 corner_radius=UIConfig.BUTTON_CORNER,
                 fg_color=UIConfig.COLOR_BUTTON_SOFT,
                 hover_color=UIConfig.COLOR_BUTTON_SOFT_HOVER,
-                text_color=UIConfig.COLOR_TEXT_BLUE_DARK,
+                text_color=UIConfig.COLOR_TEXT_ALT,
                 anchor="w",
-            ).pack(fill="x", padx=14, pady=(0, 10))
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON),
+            ).pack(fill="x", padx=UIConfig.INNER_PAD, pady=(0, 6))
 
     def _ensure_image_selected(self):
         if self.logic.img_cv is None:

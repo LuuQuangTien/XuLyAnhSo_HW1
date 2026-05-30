@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 
 from .UIConfig import UIConfig
 
+
 class BaseUI:
     def __init__(self, root):
         self.root = root
@@ -18,12 +19,13 @@ class BaseUI:
         self.current_pil_image = None
         self.preview_image_id = None
         self.preview_text_id = None
+        self.preview_subtext_id = None
         self.preview_zoom = 1.0
         self.preview_min_zoom = 0.1
         self.preview_max_zoom = 8.0
         self.col_count = UIConfig.COL_COUNT
 
-        ctk.set_appearance_mode("light")
+        ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
         self.root.configure(fg_color=UIConfig.COLOR_APP_BG)
@@ -38,6 +40,17 @@ class BaseUI:
         self.main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
         self.main_frame.pack(fill="both", expand=True, padx=UIConfig.MAIN_PAD, pady=UIConfig.MAIN_PAD)
 
+        self.tool_rail = ctk.CTkFrame(
+            self.main_frame,
+            width=UIConfig.TOOL_RAIL_WIDTH,
+            fg_color=UIConfig.COLOR_TOOL_BG,
+            corner_radius=UIConfig.PANEL_CORNER,
+            border_width=UIConfig.BORDER_WIDTH,
+            border_color=UIConfig.COLOR_BORDER,
+        )
+        self.tool_rail.pack(side="left", fill="y")
+        self.tool_rail.pack_propagate(False)
+
         self.left = ctk.CTkFrame(
             self.main_frame,
             width=UIConfig.LEFT_PANEL_WIDTH,
@@ -46,43 +59,129 @@ class BaseUI:
             border_width=UIConfig.BORDER_WIDTH,
             border_color=UIConfig.COLOR_BORDER,
         )
-        self.left.pack(side="left", fill="y")
+        self.left.pack(side="left", fill="y", padx=(UIConfig.MAIN_PAD, 0))
         self.left.pack_propagate(False)
+
+        self.center = ctk.CTkFrame(
+            self.main_frame,
+            fg_color=UIConfig.COLOR_RIGHT_BG,
+            corner_radius=UIConfig.PANEL_CORNER,
+            border_width=UIConfig.BORDER_WIDTH,
+            border_color=UIConfig.COLOR_BORDER,
+        )
+        self.center.pack(side="left", fill="both", expand=True, padx=(UIConfig.MAIN_PAD, UIConfig.MAIN_PAD))
 
         self.right = ctk.CTkFrame(
             self.main_frame,
-            corner_radius=UIConfig.OUTER_CORNER,
-            fg_color=UIConfig.COLOR_RIGHT_BG,
+            width=UIConfig.RIGHT_PANEL_WIDTH,
+            corner_radius=UIConfig.PANEL_CORNER,
+            fg_color=UIConfig.COLOR_LEFT_BG,
+            border_width=UIConfig.BORDER_WIDTH,
+            border_color=UIConfig.COLOR_BORDER,
         )
-        self.right.pack(side="left", fill="both", expand=True, padx=(UIConfig.MAIN_PAD, 0))
+        self.right.pack(side="left", fill="y")
+        self.right.pack_propagate(False)
 
+        self.build_tool_rail()
         self.build_sidebar_shell()
         self.build_preview_shell()
         self.build_action_shell()
 
-    def build_sidebar_shell(self):
+
+    def show_active_hw_tools(self):
+        if hasattr(self, "slider_frame"):
+            self.slider_frame.pack_forget()
+        if hasattr(self, "tool_group_widgets"):
+            for widget in self.tool_group_widgets:
+                widget.pack(fill="x", padx=2, pady=(0, 10))
+
+    def build_tool_rail(self):
+        # Open button at the top
         self.select_btn = ctk.CTkButton(
-            self.left,
-            text="Chon thu muc anh",
+            self.tool_rail,
+            text="Open",
             command=self.select_folder,
-            height=UIConfig.PRIMARY_BUTTON_HEIGHT,
-            corner_radius=UIConfig.SMALL_CORNER,
-            fg_color=UIConfig.COLOR_PRIMARY,
+            height=UIConfig.BUTTON_HEIGHT,
+            corner_radius=UIConfig.BUTTON_CORNER,
+            fg_color=UIConfig.COLOR_TOOL_ACTIVE,
             hover_color=UIConfig.COLOR_PRIMARY_HOVER,
             font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
         )
-        self.select_btn.pack(fill="x", padx=UIConfig.MAIN_PAD, pady=(UIConfig.MAIN_PAD, 14))
+        self.select_btn.pack(fill="x", padx=6, pady=(12, 10))
 
+        # Thin visual separator
+        separator = ctk.CTkFrame(self.tool_rail, height=1, fg_color=UIConfig.COLOR_BORDER)
+        separator.pack(fill="x", padx=8, pady=(0, 10))
+
+        # HW1 to HW5 buttons in a neat, vertical layout
+        self.hw_buttons = {}
+        for i in range(1, 6):
+            btn = ctk.CTkButton(
+                self.tool_rail,
+                text=f"HW{i}",
+                height=32,
+                corner_radius=UIConfig.BUTTON_CORNER,
+                fg_color="transparent",
+                hover_color=UIConfig.COLOR_TOOL_HOVER,
+                text_color=UIConfig.COLOR_TEXT_ALT,
+                border_width=1,
+                border_color=UIConfig.COLOR_BORDER,
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+                command=lambda n=i: self.select_hw(n)
+            )
+            btn.pack(fill="x", padx=6, pady=3)
+            self.hw_buttons[i] = btn
+
+        # Reset, Apply, Download action buttons packed at the bottom from the bottom up
+        self.reset_btn = ctk.CTkButton(
+            self.tool_rail,
+            text="Reset",
+            command=self.reset_img,
+            height=UIConfig.BUTTON_HEIGHT,
+            corner_radius=UIConfig.BUTTON_CORNER,
+            fg_color=UIConfig.COLOR_NEUTRAL,
+            hover_color=UIConfig.COLOR_NEUTRAL_HOVER,
+            text_color=UIConfig.COLOR_TEXT_ALT,
+            font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+        )
+        self.reset_btn.pack(side="bottom", fill="x", padx=6, pady=(3, 12))
+
+        self.apply_btn = ctk.CTkButton(
+            self.tool_rail,
+            text="Apply",
+            command=self.apply_changes,
+            height=UIConfig.BUTTON_HEIGHT,
+            corner_radius=UIConfig.BUTTON_CORNER,
+            fg_color=UIConfig.COLOR_SUCCESS,
+            hover_color=UIConfig.COLOR_SUCCESS_HOVER,
+            text_color=UIConfig.COLOR_TEXT,
+            font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+        )
+        self.apply_btn.pack(side="bottom", fill="x", padx=6, pady=3)
+
+        self.download_btn = ctk.CTkButton(
+            self.tool_rail,
+            text="Download",
+            command=self.download_image,
+            height=UIConfig.BUTTON_HEIGHT,
+            corner_radius=UIConfig.BUTTON_CORNER,
+            fg_color=UIConfig.COLOR_PRIMARY,
+            hover_color=UIConfig.COLOR_PRIMARY_HOVER,
+            text_color=UIConfig.COLOR_TEXT,
+            font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+        )
+        self.download_btn.pack(side="bottom", fill="x", padx=6, pady=3)
+
+    def build_sidebar_shell(self):
+        # Maximized container for folders tree and thumbnails
         self.nav_container = ctk.CTkFrame(
             self.left,
-            height=UIConfig.NAV_PANEL_HEIGHT,
-            corner_radius=UIConfig.GROUP_CORNER,
+            corner_radius=UIConfig.PANEL_CORNER,
             fg_color=UIConfig.COLOR_CARD_BG,
             border_width=UIConfig.BORDER_WIDTH,
             border_color=UIConfig.COLOR_BORDER,
         )
-        self.nav_container.pack(fill="x", expand=False, padx=UIConfig.MAIN_PAD, pady=(0, UIConfig.SMALL_PAD))
-        self.nav_container.pack_propagate(False)
+        self.nav_container.pack(fill="both", expand=True, padx=UIConfig.INNER_PAD, pady=UIConfig.INNER_PAD)
 
         self.tree_frame = ctk.CTkFrame(self.nav_container, fg_color="transparent")
         self._build_tree_view()
@@ -90,19 +189,33 @@ class BaseUI:
         self.thumb_frame = ctk.CTkFrame(self.nav_container, fg_color="transparent")
         self._build_thumbnail_view()
 
+        # Sleek compatibility status fields
+        self.browser_status = ctk.CTkLabel(
+            self.left,
+            text="No file selected",
+            text_color=UIConfig.COLOR_TEXT_MUTED,
+            font=ctk.CTkFont(size=UIConfig.FONT_SMALL, weight="bold"),
+            anchor="w",
+        )
+        self.browser_status.pack(fill="x", padx=UIConfig.INNER_PAD, pady=(0, UIConfig.INNER_PAD))
+
+        # Hidden browser footer placeholder to satisfy reference constraints in other tools
+        self.browser_footer = self.left
+        self.browser_hint = ctk.CTkLabel(self.left, text="")  # Hidden label
+
         self.show_tree()
 
     def _build_tree_view(self):
         ctk.CTkLabel(
             self.tree_frame,
-            text="Thu muc anh",
+            text="Folders",
             font=ctk.CTkFont(size=UIConfig.FONT_GROUP, weight="bold"),
             text_color=UIConfig.COLOR_TEXT,
         ).pack(anchor="w", padx=14, pady=(14, UIConfig.XSMALL_PAD))
 
         tree_wrap = ctk.CTkFrame(
             self.tree_frame,
-            fg_color=UIConfig.COLOR_CARD_BG,
+            fg_color=UIConfig.COLOR_SUBTLE_BG,
             corner_radius=UIConfig.SMALL_CORNER,
         )
         tree_wrap.pack(fill="both", expand=True, padx=UIConfig.SMALL_PAD, pady=(0, UIConfig.SMALL_PAD))
@@ -111,9 +224,9 @@ class BaseUI:
         style.theme_use("default")
         style.configure(
             "Custom.Treeview",
-            background=UIConfig.COLOR_CARD_BG,
-            fieldbackground=UIConfig.COLOR_CARD_BG,
-            foreground="#1f2937",
+            background=UIConfig.COLOR_SUBTLE_BG,
+            fieldbackground=UIConfig.COLOR_SUBTLE_BG,
+            foreground=UIConfig.COLOR_TEXT_ALT,
             rowheight=UIConfig.TREE_ROW_HEIGHT,
             borderwidth=0,
             relief="flat",
@@ -121,8 +234,8 @@ class BaseUI:
         )
         style.map(
             "Custom.Treeview",
-            background=[("selected", "#dbeafe")],
-            foreground=[("selected", "#2563eb")],
+            background=[("selected", "#25406a")],
+            foreground=[("selected", "#f8fbff")],
         )
 
         self.tree = ttk.Treeview(tree_wrap, show="tree", style="Custom.Treeview", selectmode="browse")
@@ -139,18 +252,18 @@ class BaseUI:
         ctk.CTkButton(
             top_bar,
             text="Back",
-            width=100,
+            width=82,
             height=UIConfig.SMALL_BUTTON_HEIGHT,
             command=self.show_tree,
             corner_radius=UIConfig.XS_CORNER,
             fg_color=UIConfig.COLOR_SECONDARY_SOFT,
             hover_color=UIConfig.COLOR_SECONDARY_SOFT_HOVER,
-            text_color=UIConfig.COLOR_TEXT_BLUE_DARK,
+            text_color=UIConfig.COLOR_TEXT_ALT,
         ).pack(side="left")
 
         self.thumb_title = ctk.CTkLabel(
             top_bar,
-            text="Danh sach anh",
+            text="Assets",
             font=ctk.CTkFont(size=UIConfig.FONT_GROUP, weight="bold"),
             text_color=UIConfig.COLOR_TEXT,
         )
@@ -167,18 +280,22 @@ class BaseUI:
             self.thumb_scroll_frame.grid_columnconfigure(col, weight=1)
 
     def build_preview_shell(self):
-        self.preview_header = ctk.CTkFrame(self.right, fg_color="transparent")
-        self.preview_header.pack(fill="x", padx=UIConfig.SECTION_PAD_X, pady=(22, 14))
+        self.top_toolbar = ctk.CTkFrame(
+            self.center,
+            fg_color=UIConfig.COLOR_CARD_BG,
+            corner_radius=UIConfig.GROUP_CORNER,
+            border_width=UIConfig.BORDER_WIDTH,
+            border_color=UIConfig.COLOR_BORDER,
+        )
+        self.top_toolbar.pack(fill="x", padx=UIConfig.SECTION_PAD_X, pady=(16, 10))
 
-        ctk.CTkLabel(
-            self.preview_header,
-            text="Preview",
-            font=ctk.CTkFont(size=UIConfig.FONT_TITLE, weight="bold"),
-            text_color="#1c2a39",
-        ).pack(anchor="w")
+        self._add_toolbar_chip(self.top_toolbar, "Zoom", "Fit")
+        self._add_toolbar_chip(self.top_toolbar, "Mode", "Preview")
+        self._add_toolbar_chip(self.top_toolbar, "Canvas", "RGB")
+        self.zoom_label = self._add_toolbar_chip(self.top_toolbar, "Scale", "100%")
 
-        self.preview_panel = ctk.CTkFrame(self.right, fg_color="transparent")
-        self.preview_panel.pack(fill="both", expand=True, padx=UIConfig.SECTION_PAD_X, pady=(0, UIConfig.SMALL_PAD))
+        self.preview_panel = ctk.CTkFrame(self.center, fg_color="transparent")
+        self.preview_panel.pack(fill="both", expand=True, padx=UIConfig.SECTION_PAD_X, pady=(0, UIConfig.SECTION_PAD_Y))
 
         self.image_card = ctk.CTkFrame(
             self.preview_panel,
@@ -194,11 +311,19 @@ class BaseUI:
 
         self.image_title = ctk.CTkLabel(
             self.image_info_bar,
-            text="Chua chon anh",
+            text="No image loaded",
             font=ctk.CTkFont(size=UIConfig.FONT_SECTION, weight="bold"),
             text_color=UIConfig.COLOR_TEXT,
         )
-        self.image_title.pack(anchor="w")
+        self.image_title.pack(side="left", anchor="w")
+
+        self.image_meta = ctk.CTkLabel(
+            self.image_info_bar,
+            text="Preview workspace",
+            font=ctk.CTkFont(size=11),
+            text_color=UIConfig.COLOR_TEXT_MUTED,
+        )
+        self.image_meta.pack(side="right", anchor="e")
 
         self.image_stage = ctk.CTkFrame(
             self.image_card,
@@ -228,9 +353,17 @@ class BaseUI:
         self.preview_text_id = self.preview_canvas.create_text(
             0,
             0,
-            text="Khu vuc xem anh",
+            text="Canvas",
+            fill=UIConfig.COLOR_TEXT_ALT,
+            font=("Segoe UI", 24, "bold"),
+            anchor="center",
+        )
+        self.preview_subtext_id = self.preview_canvas.create_text(
+            0,
+            0,
+            text="Open a folder and choose an image to start editing",
             fill=UIConfig.COLOR_TEXT_FAINT,
-            font=("Segoe UI", 22, "bold"),
+            font=("Segoe UI", 12),
             anchor="center",
         )
 
@@ -243,10 +376,13 @@ class BaseUI:
             self.preview_panel,
             fg_color=UIConfig.COLOR_ACCENT_BG,
             corner_radius=UIConfig.GROUP_CORNER,
+            border_width=UIConfig.BORDER_WIDTH,
+            border_color=UIConfig.COLOR_BORDER,
         )
         self.rgb_title = ctk.CTkLabel(
             self.rgb_nav_frame,
             text="",
+            text_color=UIConfig.COLOR_TEXT,
             font=ctk.CTkFont(size=UIConfig.FONT_GROUP, weight="bold"),
         )
         self.rgb_title.pack(pady=(UIConfig.SMALL_PAD, 6))
@@ -256,7 +392,7 @@ class BaseUI:
 
         ctk.CTkButton(
             nav,
-            text="Truoc",
+            text="Previous",
             command=self.rgb_prev,
             height=UIConfig.SMALL_BUTTON_HEIGHT,
             corner_radius=UIConfig.XS_CORNER,
@@ -267,7 +403,7 @@ class BaseUI:
 
         ctk.CTkButton(
             nav,
-            text="Sau",
+            text="Next",
             command=self.rgb_next,
             height=UIConfig.SMALL_BUTTON_HEIGHT,
             corner_radius=UIConfig.XS_CORNER,
@@ -276,15 +412,36 @@ class BaseUI:
             text_color=UIConfig.COLOR_TEXT_BLUE,
         ).pack(side="left", fill="x", expand=True)
 
+    def _add_toolbar_chip(self, parent, label, value):
+        chip = ctk.CTkFrame(parent, fg_color="transparent")
+        chip.pack(side="left", padx=(14, 0), pady=10)
+
+        ctk.CTkLabel(
+            chip,
+            text=label.upper(),
+            text_color=UIConfig.COLOR_TEXT_FAINT,
+            font=ctk.CTkFont(size=9, weight="bold"),
+        ).pack(anchor="w")
+
+        value_label = ctk.CTkLabel(
+            chip,
+            text=value,
+            text_color=UIConfig.COLOR_TEXT_ALT,
+            font=ctk.CTkFont(size=12, weight="bold"),
+        )
+        value_label.pack(anchor="w")
+        return value_label
+
     def build_action_shell(self):
         self.action_panel = ctk.CTkScrollableFrame(
             self.right,
-            corner_radius=UIConfig.OUTER_CORNER,
+            corner_radius=UIConfig.PANEL_CORNER,
             fg_color=UIConfig.COLOR_SUBTLE_BG,
             border_width=UIConfig.BORDER_WIDTH,
             border_color=UIConfig.COLOR_BORDER,
         )
-        self.action_panel.pack(fill="x", expand=False, padx=UIConfig.SECTION_PAD_X, pady=(0, UIConfig.SECTION_PAD_Y))
+        self.action_panel.pack(fill="both", expand=True, padx=UIConfig.INNER_PAD, pady=UIConfig.INNER_PAD)
+        self.tool_group_widgets = []
 
         self.slider_frame = ctk.CTkFrame(
             self.action_panel,
@@ -293,79 +450,32 @@ class BaseUI:
             border_width=UIConfig.BORDER_WIDTH,
             border_color=UIConfig.COLOR_BORDER,
         )
+        self.slider_frame.pack_forget()
+        self.back_btn = ctk.CTkButton(
+            self.slider_frame,
+            text="← Back to Tools",
+            height=UIConfig.SMALL_BUTTON_HEIGHT,
+            corner_radius=UIConfig.XS_CORNER,
+            fg_color=UIConfig.COLOR_BUTTON_SOFT,
+            hover_color=UIConfig.COLOR_BUTTON_SOFT_HOVER,
+            text_color=UIConfig.COLOR_TEXT_BLUE,
+            font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+            command=self.show_active_hw_tools
+        )
+        self.back_btn.pack(anchor="w", padx=UIConfig.INNER_PAD, pady=(UIConfig.INNER_PAD, 6))
+
         self.slider_header = ctk.CTkLabel(
             self.slider_frame,
-            text="Dieu chinh tham so",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            text="Adjustments",
+            font=ctk.CTkFont(size=14, weight="bold"),
             text_color=UIConfig.COLOR_TEXT,
         )
-        self.slider_header.pack(anchor="w", padx=UIConfig.INNER_PAD, pady=(UIConfig.MAIN_PAD, 6))
-
-        self.slider_hint = ctk.CTkLabel(
-            self.slider_frame,
-            text="Thay doi thong so de xem ket qua ngay lap tuc.",
-            font=ctk.CTkFont(size=12),
-            text_color="#748397",
-        )
-        self.slider_hint.pack(anchor="w", padx=UIConfig.INNER_PAD, pady=(0, UIConfig.XSMALL_PAD))
+        self.slider_header.pack(anchor="w", padx=UIConfig.INNER_PAD, pady=(2, 6))
+        self.action_title = ctk.CTkLabel(self.slider_frame, text="")
+        self.action_frame = ctk.CTkFrame(self.slider_frame, fg_color="transparent")
 
         self.slider_items = ctk.CTkFrame(self.slider_frame, fg_color="transparent")
-        self.slider_items.pack(fill="x", padx=UIConfig.INNER_PAD, pady=(0, UIConfig.SMALL_PAD))
-
-        self.action_frame = ctk.CTkFrame(
-            self.action_panel,
-            corner_radius=UIConfig.CARD_CORNER,
-            fg_color=UIConfig.COLOR_CARD_BG,
-            border_width=UIConfig.BORDER_WIDTH,
-            border_color=UIConfig.COLOR_BORDER,
-        )
-
-        self.action_title = ctk.CTkLabel(
-            self.action_frame,
-            text="Tac vu anh",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color=UIConfig.COLOR_TEXT,
-        )
-        self.action_title.pack(anchor="w", padx=UIConfig.INNER_PAD, pady=(UIConfig.MAIN_PAD, 10))
-
-        btn_row = ctk.CTkFrame(self.action_frame, fg_color="transparent")
-        btn_row.pack(fill="x", padx=UIConfig.INNER_PAD, pady=(0, UIConfig.MAIN_PAD))
-
-        ctk.CTkButton(
-            btn_row,
-            text="Reset",
-            command=self.reset_img,
-            height=UIConfig.BUTTON_HEIGHT,
-            corner_radius=UIConfig.BUTTON_CORNER,
-            fg_color=UIConfig.COLOR_NEUTRAL,
-            hover_color=UIConfig.COLOR_NEUTRAL_HOVER,
-            text_color="#243447",
-        ).pack(side="left", fill="x", expand=True, padx=(0, UIConfig.XSMALL_PAD))
-
-        ctk.CTkButton(
-            btn_row,
-            text="Apply",
-            command=self.apply_changes,
-            height=UIConfig.BUTTON_HEIGHT,
-            corner_radius=UIConfig.BUTTON_CORNER,
-            fg_color=UIConfig.COLOR_SUCCESS,
-            hover_color=UIConfig.COLOR_SUCCESS_HOVER,
-            font=ctk.CTkFont(weight="bold"),
-        ).pack(side="left", fill="x", expand=True, padx=4)
-
-        ctk.CTkButton(
-            btn_row,
-            text="Download",
-            command=self.download_image,
-            height=UIConfig.BUTTON_HEIGHT,
-            corner_radius=UIConfig.BUTTON_CORNER,
-            fg_color=UIConfig.COLOR_PRIMARY,
-            hover_color=UIConfig.COLOR_PRIMARY_HOVER,
-            font=ctk.CTkFont(weight="bold"),
-        ).pack(side="left", fill="x", expand=True, padx=(UIConfig.XSMALL_PAD, 0))
-
-        self.slider_frame.pack_forget()
-        self.action_frame.pack_forget()
+        self.slider_items.pack(fill="x", padx=UIConfig.INNER_PAD, pady=(0, UIConfig.INNER_PAD))
 
     def show_tree(self):
         self.thumb_frame.pack_forget()
@@ -391,9 +501,10 @@ class BaseUI:
         else:
             self.preview_canvas.itemconfigure(self.preview_image_id, image=self.current_img)
         self.preview_canvas.itemconfigure(self.preview_text_id, state="hidden")
+        self.preview_canvas.itemconfigure(self.preview_subtext_id, state="hidden")
         self.update_preview_canvas()
 
-    def show_placeholder(self, title="Khu vuc xem anh", subtitle="Chon mot anh de bat dau."):
+    def show_placeholder(self, title="Canvas", subtitle="Open a folder and choose an image to start editing"):
         self.current_img = None
         self.current_pil_image = None
         self.preview_zoom = 1.0
@@ -401,7 +512,11 @@ class BaseUI:
             self.preview_canvas.delete(self.preview_image_id)
             self.preview_image_id = None
         self.preview_canvas.itemconfigure(self.preview_text_id, text=title, state="normal")
+        self.preview_canvas.itemconfigure(self.preview_subtext_id, text=subtitle, state="normal")
         self.image_title.configure(text=title)
+        self.image_meta.configure(text="Preview workspace")
+        self.browser_status.configure(text="No file selected")
+        self.update_zoom_label()
         self.update_preview_canvas()
 
     def fit_preview_zoom(self):
@@ -429,12 +544,19 @@ class BaseUI:
         )
         rendered = self.current_pil_image.resize(scaled_size, Image.Resampling.LANCZOS)
         self.show_image_tk(ImageTk.PhotoImage(rendered))
+        self.update_zoom_label()
+        self.image_meta.configure(text=f"{img_w} x {img_h}px")
+
+    def update_zoom_label(self):
+        if hasattr(self, "zoom_label"):
+            self.zoom_label.configure(text=f"{int(self.preview_zoom * 100)}%")
 
     def update_preview_canvas(self):
         canvas_w, canvas_h = self.get_preview_size()
 
         if self.preview_image_id is None or self.current_img is None:
-            self.preview_canvas.coords(self.preview_text_id, canvas_w / 2, canvas_h / 2)
+            self.preview_canvas.coords(self.preview_text_id, canvas_w / 2, (canvas_h / 2) - 14)
+            self.preview_canvas.coords(self.preview_subtext_id, canvas_w / 2, (canvas_h / 2) + 18)
             self.preview_canvas.configure(scrollregion=(0, 0, canvas_w, canvas_h))
             return
 
@@ -491,7 +613,9 @@ class BaseUI:
         root_node = self.tree.insert("", "end", text=os.path.basename(path), values=(path,))
         self.populate_tree(root_node, path)
         self.tree.item(root_node, open=True)
-        self.show_placeholder("Thu muc da san sang")
+        self.browser_status.configure(text=os.path.basename(path) or path)
+        self.browser_hint.configure(text="Thu muc da nap. Chon mot folder con de hien thumbnail anh.")
+        self.show_placeholder("Folder Ready", "Chon mot image asset o browser ben trai.")
         self.show_tree()
 
     def populate_tree(self, parent, path):
@@ -519,13 +643,15 @@ class BaseUI:
         self.thumb_images.clear()
 
         folder_name = os.path.basename(path) or path
-        self.thumb_title.configure(text=f"{folder_name}")
+        self.thumb_title.configure(text=folder_name)
+        self.browser_status.configure(text=folder_name)
+        self.browser_hint.configure(text="Danh sach thumbnail da san sang. Click vao mot anh de dua len canvas.")
 
         if not images:
             ctk.CTkLabel(
                 self.thumb_scroll_frame,
                 text="Khong tim thay anh trong thu muc nay.",
-                text_color="#64748b",
+                text_color=UIConfig.COLOR_TEXT_MUTED,
             ).grid(row=0, column=0, columnspan=self.col_count, padx=UIConfig.SMALL_PAD, pady=UIConfig.MAIN_PAD)
         else:
             for index, img in enumerate(images):
@@ -546,7 +672,7 @@ class BaseUI:
                     border_width=UIConfig.BORDER_WIDTH,
                     border_color=UIConfig.COLOR_BORDER_SOFT,
                 )
-                card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+                card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
                 card.grid_propagate(False)
 
                 content = ctk.CTkFrame(card, fg_color="transparent")
@@ -576,15 +702,13 @@ class BaseUI:
         self.show_thumbs()
 
     def show_action_bar(self):
-        self.slider_frame.pack_forget()
-        self.action_title.configure(text="Tac vu anh")
-        self.action_frame.pack(side="top", fill="x", padx=UIConfig.XSMALL_PAD, pady=(UIConfig.XSMALL_PAD, UIConfig.INNER_PAD))
+        self.show_active_hw_tools()
 
     def mark_selected_thumbnail(self, image_name):
         self.selected_thumb_name = image_name
         for name, btn, label, image_label in self.thumb_buttons:
             if name == image_name:
-                btn.configure(fg_color=UIConfig.COLOR_PRIMARY_SOFT, border_color="#60a5fa")
+                btn.configure(fg_color=UIConfig.COLOR_PRIMARY_SOFT, border_color=UIConfig.COLOR_PRIMARY)
                 label.configure(text_color=UIConfig.COLOR_TEXT_BLUE)
             else:
                 btn.configure(fg_color=UIConfig.COLOR_CARD_BG, border_color=UIConfig.COLOR_BORDER_SOFT)
@@ -612,6 +736,8 @@ class BaseUI:
             self.show_pil_image(pil_img)
             self.mark_selected_thumbnail(name)
             self.image_title.configure(text=name)
+            self.browser_status.configure(text=name)
+            self.browser_hint.configure(text="Anh hien dang duoc preview. Chon effect de thay doi va Apply de ghi vao file goc.")
             self.current_op = None
             self.current_res_cv = None
             if hasattr(self, "show_action_bar"):
