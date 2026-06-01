@@ -40,6 +40,9 @@ class AttributeUI:
             "convex_hull": "Convex Hull",
             "thinning": "Thinning",
             "thickening": "Thickening",
+            "video_segment": "Video / Camera Segmentation",
+            "gaussian_threshold": "Optimal Threshold (Gaussian)",
+            "segment_count": "Segment & Count Objects",
         }
 
     def add_slider(self, key, label_text, from_val, to_val, default_val, is_int=False):
@@ -339,6 +342,76 @@ class AttributeUI:
             self.add_morphology_controls()
         elif op_name == "thickening":
             self.add_slider("iterations", "Iterations", 1, 10, 3, is_int=True)
+        elif op_name == "video_segment":
+            import tkinter as tk
+            # Source selector
+            self.add_option_selector("video_source", "Source", ["File", "Camera"], "File")
+            # Method selector
+            self.add_option_selector("video_method", "Method", ["MOG2", "KNN", "Frame Diff"], "MOG2")
+
+            # Buttons: Start / Pause / Stop
+            btn_frame = ctk.CTkFrame(self.slider_items, fg_color="transparent")
+            btn_frame.pack(fill="x", pady=6)
+
+            self._video_start_btn = ctk.CTkButton(
+                btn_frame, text="▶ Start", command=self.start_video,
+                height=UIConfig.BUTTON_HEIGHT, corner_radius=UIConfig.BUTTON_CORNER,
+                fg_color=UIConfig.COLOR_SUCCESS, hover_color=UIConfig.COLOR_SUCCESS_HOVER,
+                text_color=UIConfig.COLOR_TEXT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+            )
+            self._video_start_btn.pack(side="left", fill="x", expand=True, padx=(0, 3))
+
+            self._video_pause_btn = ctk.CTkButton(
+                btn_frame, text="⏸ Pause", command=self._toggle_video_pause,
+                height=UIConfig.BUTTON_HEIGHT, corner_radius=UIConfig.BUTTON_CORNER,
+                fg_color=UIConfig.COLOR_PRIMARY, hover_color=UIConfig.COLOR_PRIMARY_HOVER,
+                text_color=UIConfig.COLOR_TEXT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+            )
+            self._video_pause_btn.pack(side="left", fill="x", expand=True, padx=(0, 3))
+
+            self._video_stop_btn = ctk.CTkButton(
+                btn_frame, text="⏹ Stop", command=self._stop_video, state="disabled",
+                height=UIConfig.BUTTON_HEIGHT, corner_radius=UIConfig.BUTTON_CORNER,
+                fg_color=UIConfig.COLOR_DANGER, hover_color="#ff7777",
+                text_color=UIConfig.COLOR_TEXT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold"),
+            )
+            self._video_stop_btn.pack(side="left", fill="x", expand=True)
+
+            # Toggle switches
+            toggle_frame = ctk.CTkFrame(self.slider_items, fg_color="transparent")
+            toggle_frame.pack(fill="x", pady=6)
+
+            self._video_bbox_var = tk.BooleanVar(value=True)
+            ctk.CTkSwitch(
+                toggle_frame, text="Bounding Box",
+                variable=self._video_bbox_var,
+                onvalue=True, offvalue=False,
+                progress_color=UIConfig.COLOR_SUCCESS,
+                text_color=UIConfig.COLOR_TEXT_ALT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BODY),
+            ).pack(anchor="w", pady=2)
+
+            self._video_thresh_var = tk.BooleanVar(value=False)
+            ctk.CTkSwitch(
+                toggle_frame, text="Threshold View",
+                variable=self._video_thresh_var,
+                onvalue=True, offvalue=False,
+                progress_color=UIConfig.COLOR_PRIMARY,
+                text_color=UIConfig.COLOR_TEXT_ALT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BODY),
+            ).pack(anchor="w", pady=2)
+        elif op_name == "gaussian_threshold":
+            self.add_slider("mu1", "μ₁ (Background Mean)", 0, 255, 80, is_int=True)
+            self.add_slider("mu2", "μ₂ (Object Mean)", 0, 255, 180, is_int=True)
+            self.add_slider("sigma", "σ (Std Deviation)", 1, 80, 20, is_int=True)
+            self.add_slider("p_percent", "p% (Object Proportion)", 1, 99, 50, is_int=True)
+        elif op_name == "segment_count":
+            self.add_slider("angle", "Light Angle (°)", 0, 360, 0, is_int=True)
+            self.add_slider("intensity", "Light Intensity", 0.0, 1.0, 0.0)
+            self.add_slider("min_area", "Min Object Area", 10, 5000, 100, is_int=True)
 
         # Always pack the slider frame to show the back button and active tool header
         self.slider_frame.pack(fill="both", expand=True)
@@ -442,6 +515,31 @@ class AttributeUI:
             res_cv = self.logic.thinning()
         elif self.current_op == "thickening":
             res_cv = self.logic.thickening(iterations=vals.get("iterations", 3))
+        elif self.current_op == "gaussian_threshold":
+            mu1 = vals.get("mu1", 80)
+            mu2 = vals.get("mu2", 180)
+            sigma = vals.get("sigma", 20)
+            p = vals.get("p_percent", 50) / 100.0
+            res_cv, threshold = self.logic.plot_gaussian_threshold(mu1, mu2, sigma, p)
+            if res_cv is not None:
+                self.current_res_cv = res_cv
+                self.show_cv_image(res_cv)
+                self.image_meta.configure(text=f"T = {threshold:.2f}")
+            return
+        elif self.current_op == "segment_count":
+            angle = int(vals.get("angle", 0))
+            intensity = vals.get("intensity", 0.0)
+            min_area = int(vals.get("min_area", 100))
+            annotated, count, T, mu1, mu2, sigma, p = self.logic.segment_count_objects(
+                angle_deg=angle, intensity=intensity, min_area=min_area
+            )
+            if annotated is not None:
+                self.current_res_cv = annotated
+                self.show_cv_image(annotated)
+                self.image_meta.configure(
+                    text=f"Objects: {count} | T={T:.1f} | μ₁={mu1:.0f} μ₂={mu2:.0f} | σ={sigma:.0f} | p={p:.0%}"
+                )
+            return
 
         if res_cv is not None:
             self.current_res_cv = res_cv

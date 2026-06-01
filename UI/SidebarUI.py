@@ -1,4 +1,4 @@
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 
 import customtkinter as ctk
 
@@ -91,13 +91,33 @@ class SidebarUI:
                     ],
                 )
             ],
-            5: []
+            5: [
+                (
+                    "Video Segmentation",
+                    [
+                        ("Video / Camera Segment", lambda: self.set_op("video_segment")),
+                    ],
+                ),
+                (
+                    "Gaussian Threshold",
+                    [
+                        ("Optimal Threshold Plot", lambda: self.set_op("gaussian_threshold")),
+                    ],
+                ),
+                (
+                    "Segment & Count",
+                    [
+                        ("Segment Objects", lambda: self.set_op("segment_count")),
+                    ],
+                ),
+            ]
         }
 
         self.select_hw(1)
 
     def select_hw(self, hw_num):
         self.active_hw = hw_num
+        self._stop_video()  # Always stop video when switching HW tabs
         for idx, btn in self.hw_buttons.items():
             if idx == hw_num:
                 btn.configure(
@@ -230,10 +250,167 @@ class SidebarUI:
             self.show_cv_image(cropped)
 
     def set_op(self, op_name):
-        if not self._ensure_image_selected():
+        # Stop any running video when switching operations
+        self._stop_video()
+
+        # video_segment does not require a pre-loaded image
+        if op_name != "video_segment" and not self._ensure_image_selected():
             return
 
         self.current_op = op_name
         self.hide_nav()
         self.prepare_operation_panel(op_name)
-        self.on_slide()
+
+        # Don't call on_slide for video_segment (it manages its own display)
+        if op_name != "video_segment":
+            self.on_slide()
+
+    # ──────────────────────────────────────────────
+    # VIDEO PLAYBACK IN MAIN PREVIEW CANVAS
+    # ──────────────────────────────────────────────
+
+    def _init_video_state(self):
+        """Ensure video state attributes exist."""
+        if not hasattr(self, "_video_cap"):
+            self._video_cap = None
+        if not hasattr(self, "_video_subtractor"):
+            self._video_subtractor = None
+        if not hasattr(self, "_video_playing"):
+            self._video_playing = False
+        if not hasattr(self, "_video_prev_gray"):
+            self._video_prev_gray = None
+        if not hasattr(self, "_video_after_id"):
+            self._video_after_id = None
+        if not hasattr(self, "_video_method"):
+            self._video_method = "MOG2"
+        if not hasattr(self, "_video_zoom_set"):
+            self._video_zoom_set = False
+
+    def start_video(self):
+        """Start video from file or camera based on current selector values."""
+        import cv2
+        self._init_video_state()
+        self._stop_video()  # Clean up any existing session
+
+        source = self.active_selectors.get("video_source")
+        source_val = source.get() if source else "File"
+        method_var = self.active_selectors.get("video_method")
+        method = method_var.get() if method_var else "MOG2"
+        self._video_method = method
+
+        if source_val == "Camera":
+            video_path = 0
+        else:
+            video_path = filedialog.askopenfilename(
+                title="Select Video",
+                filetypes=[
+                    ("Video Files", "*.mp4 *.avi *.mkv *.mov *.wmv"),
+                    ("All Files", "*.*"),
+                ],
+            )
+            if not video_path:
+                return
+
+        success, cap, subtractor, total_frames = self.logic.video_segment_init(video_path, method)
+        if not success:
+            messagebox.showerror("Error", "Cannot open video / camera.")
+            return
+
+        self._video_cap = cap
+        self._video_subtractor = subtractor
+        self._video_playing = True
+        self._video_prev_gray = None
+        self._video_zoom_set = False
+
+        src_label = "Camera" if source_val == "Camera" else "File"
+        frames_str = f"{total_frames}" if total_frames > 0 else "live"
+        self.image_title.configure(text=f"Video — {method} ({src_label})")
+        self.image_meta.configure(text=f"Frames: {frames_str}")
+
+        # Update button states
+        if hasattr(self, "_video_start_btn") and self._video_start_btn.winfo_exists():
+            self._video_start_btn.configure(state="disabled")
+        if hasattr(self, "_video_stop_btn") and self._video_stop_btn.winfo_exists():
+            self._video_stop_btn.configure(state="normal")
+
+        self._video_frame_loop()
+
+    def _stop_video(self):
+        """Stop video playback and release resources."""
+        self._init_video_state()
+
+        if self._video_after_id is not None:
+            self.root.after_cancel(self._video_after_id)
+            self._video_after_id = None
+
+        self._video_playing = False
+
+        if self._video_cap is not None:
+            self._video_cap.release()
+            self._video_cap = None
+
+        self._video_subtractor = None
+        self._video_prev_gray = None
+        self._video_zoom_set = False
+
+        # Update button states (guard against destroyed widgets)
+        if hasattr(self, "_video_start_btn") and self._video_start_btn.winfo_exists():
+            self._video_start_btn.configure(state="normal")
+        if hasattr(self, "_video_stop_btn") and self._video_stop_btn.winfo_exists():
+            self._video_stop_btn.configure(state="disabled")
+
+    def _toggle_video_pause(self):
+        """Toggle pause/play for video."""
+        self._init_video_state()
+        if self._video_cap is None:
+            return
+
+        self._video_playing = not self._video_playing
+        if hasattr(self, "_video_pause_btn") and self._video_pause_btn.winfo_exists():
+            self._video_pause_btn.configure(
+                text="▶ Play" if not self._video_playing else "⏸ Pause"
+            )
+        if self._video_playing:
+            self._video_frame_loop()
+
+    def _video_frame_loop(self):
+        """Process and display next video frame in the main preview canvas."""
+        self._init_video_state()
+
+        if not self._video_playing or self._video_cap is None:
+            return
+
+        # Read toggle values
+        show_bbox = True
+        show_thresh = False
+        if hasattr(self, "_video_bbox_var"):
+            show_bbox = self._video_bbox_var.get()
+        if hasattr(self, "_video_thresh_var"):
+            show_thresh = self._video_thresh_var.get()
+
+        ok, result, mask, gray = self.logic.video_segment_next_frame(
+            self._video_cap, self._video_subtractor,
+            self._video_method, self._video_prev_gray,
+            show_bbox=show_bbox, show_thresh=show_thresh
+        )
+
+        if not ok:
+            self._stop_video()
+            self.image_meta.configure(text="Video ended")
+            return
+
+        self._video_prev_gray = gray
+
+        # Display in main preview canvas
+        pil_img = self.logic.cv_to_pil(result)
+        if pil_img is not None:
+            self.current_pil_image = pil_img.copy()
+            self.current_res_cv = result
+            if not self._video_zoom_set:
+                self.reset_preview_zoom()
+                self._video_zoom_set = True
+            else:
+                self.render_preview_image()
+
+        # Schedule next frame (~30fps)
+        self._video_after_id = self.root.after(33, self._video_frame_loop)
