@@ -110,6 +110,14 @@ class SidebarUI:
                         ("Segment Objects", lambda: self.set_op("segment_count")),
                     ],
                 ),
+            ],
+            6: [
+                (
+                    "Face Recognition",
+                    [
+                        ("Face Recognition / Webcam", lambda: self.set_op("face_recognition")),
+                    ],
+                )
             ]
         }
 
@@ -253,16 +261,16 @@ class SidebarUI:
         # Stop any running video when switching operations
         self._stop_video()
 
-        # video_segment does not require a pre-loaded image
-        if op_name != "video_segment" and not self._ensure_image_selected():
+        # video_segment and face_recognition do not require a pre-loaded image
+        if op_name not in ["video_segment", "face_recognition"] and not self._ensure_image_selected():
             return
 
         self.current_op = op_name
         self.hide_nav()
         self.prepare_operation_panel(op_name)
 
-        # Don't call on_slide for video_segment (it manages its own display)
-        if op_name != "video_segment":
+        # Don't call on_slide for video_segment or face_recognition (they manage their own webcam feeds)
+        if op_name not in ["video_segment", "face_recognition"]:
             self.on_slide()
 
     # ──────────────────────────────────────────────
@@ -345,6 +353,9 @@ class SidebarUI:
 
         self._video_playing = False
 
+        if hasattr(self, "_face_detection_active"):
+            self._face_detection_active = False
+
         if self._video_cap is not None:
             self._video_cap.release()
             self._video_cap = None
@@ -358,6 +369,11 @@ class SidebarUI:
             self._video_start_btn.configure(state="normal")
         if hasattr(self, "_video_stop_btn") and self._video_stop_btn.winfo_exists():
             self._video_stop_btn.configure(state="disabled")
+
+        if hasattr(self, "_btn_start_recon") and self._btn_start_recon.winfo_exists():
+            self._btn_start_recon.configure(state="normal")
+        if hasattr(self, "_face_status_label") and self._face_status_label.winfo_exists():
+            self._face_status_label.configure(text="Status: Idle", text_color=UIConfig.COLOR_TEXT_MUTED)
 
     def _toggle_video_pause(self):
         """Toggle pause/play for video."""
@@ -414,3 +430,63 @@ class SidebarUI:
 
         # Schedule next frame (~30fps)
         self._video_after_id = self.root.after(33, self._video_frame_loop)
+
+    def start_face_detection(self):
+        """Start live webcam face detection."""
+        import cv2
+        self._init_video_state()
+        self._stop_video()
+        
+        # Start camera
+        self._video_cap = cv2.VideoCapture(0)
+        if not self._video_cap.isOpened():
+            messagebox.showerror("Error", "Cannot open webcam.")
+            self._video_cap = None
+            return
+            
+        self._face_detection_active = True
+        
+        # Update UI labels
+        self.image_title.configure(text="Webcam Face Detection (Haar Cascade)")
+        self.image_meta.configure(text="Initializing camera...")
+        
+        if hasattr(self, "_face_status_label") and self._face_status_label.winfo_exists():
+            self._face_status_label.configure(text="Status: Active", text_color=UIConfig.COLOR_SUCCESS)
+        if hasattr(self, "_btn_start_recon") and self._btn_start_recon.winfo_exists():
+            self._btn_start_recon.configure(state="disabled")
+            
+        self._face_detection_loop()
+        
+    def _face_detection_loop(self):
+        """Webcam loop for live face detection."""
+        import cv2
+        if not hasattr(self, "_face_detection_active") or not self._face_detection_active or self._video_cap is None:
+            return
+            
+        ret, frame = self._video_cap.read()
+        if not ret or frame is None:
+            self._stop_video()
+            messagebox.showerror("Error", "Lost connection to webcam.")
+            return
+            
+        # Detect all faces using Haar Cascade (inherently Haar-like features)
+        faces = self.logic.detect_faces(frame)
+        
+        display_frame = frame.copy()
+        
+        for (x, y, w, h) in faces:
+            # Draw green bounding box around detected face
+            cv2.rectangle(display_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(display_frame, "Face", (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                        
+        # Draw general information
+        cv2.putText(display_frame, "Method: Haar Cascade (Haar-like features)",
+                    (10, display_frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                    
+        # Update canvas
+        self.show_cv_image(display_frame)
+        self.image_meta.configure(text=f"Faces detected: {len(faces)}")
+        
+        # Schedule next frame
+        self._video_after_id = self.root.after(33, self._face_detection_loop)

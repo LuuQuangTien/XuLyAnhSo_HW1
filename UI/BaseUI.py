@@ -113,9 +113,9 @@ class BaseUI:
         separator = ctk.CTkFrame(self.tool_rail, height=1, fg_color=UIConfig.COLOR_BORDER)
         separator.pack(fill="x", padx=8, pady=(0, 10))
 
-        # HW1 to HW5 buttons in a neat, vertical layout
+        # HW1 to HW6 buttons in a neat, vertical layout
         self.hw_buttons = {}
-        for i in range(1, 6):
+        for i in range(1, 7):
             btn = ctk.CTkButton(
                 self.tool_rail,
                 text=f"HW{i}",

@@ -43,6 +43,7 @@ class AttributeUI:
             "video_segment": "Video / Camera Segmentation",
             "gaussian_threshold": "Optimal Threshold (Gaussian)",
             "segment_count": "Segment & Count Objects",
+            "face_recognition": "Face Recognition (Haar-like & PCA)",
         }
 
     def add_slider(self, key, label_text, from_val, to_val, default_val, is_int=False):
@@ -412,6 +413,62 @@ class AttributeUI:
             self.add_slider("angle", "Light Angle (°)", 0, 360, 0, is_int=True)
             self.add_slider("intensity", "Light Intensity", 0.0, 1.0, 0.0)
             self.add_slider("min_area", "Min Object Area", 10, 5000, 100, is_int=True)
+        elif op_name == "face_recognition":
+            # Informational Label
+            info_frame = ctk.CTkFrame(self.slider_items, fg_color=UIConfig.COLOR_SUBTLE_BG, corner_radius=UIConfig.CARD_CORNER)
+            info_frame.pack(fill="x", pady=6, padx=2)
+            
+            info_label = ctk.CTkLabel(
+                info_frame,
+                text="Face Detection (Haar Cascade)\n\nThis tool uses Haar-like features and a cascade classifier to detect faces in real-time on your webcam feed.",
+                font=ctk.CTkFont(size=UIConfig.FONT_BODY),
+                text_color=UIConfig.COLOR_TEXT_ALT,
+                justify="left",
+                wraplength=250
+            )
+            info_label.pack(fill="x", padx=10, pady=12)
+            
+            # Status Label
+            self._face_status_label = ctk.CTkLabel(
+                self.slider_items,
+                text="Status: Idle",
+                font=ctk.CTkFont(size=UIConfig.FONT_BODY, weight="bold"),
+                text_color=UIConfig.COLOR_TEXT_MUTED
+            )
+            self._face_status_label.pack(anchor="w", pady=4, padx=2)
+            
+            # Separator
+            ctk.CTkFrame(self.slider_items, height=1, fg_color=UIConfig.COLOR_BORDER).pack(fill="x", pady=6)
+            
+            # Webcam action frame (Start / Stop)
+            action_frame = ctk.CTkFrame(self.slider_items, fg_color="transparent")
+            action_frame.pack(fill="x", pady=6)
+            
+            self._btn_start_recon = ctk.CTkButton(
+                action_frame,
+                text="▶ Start Camera",
+                command=self.start_face_detection,
+                height=UIConfig.BUTTON_HEIGHT,
+                corner_radius=UIConfig.BUTTON_CORNER,
+                fg_color=UIConfig.COLOR_SUCCESS,
+                hover_color=UIConfig.COLOR_SUCCESS_HOVER,
+                text_color=UIConfig.COLOR_TEXT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold")
+            )
+            self._btn_start_recon.pack(side="left", fill="x", expand=True, padx=(0, 3))
+            
+            self._btn_stop_recon = ctk.CTkButton(
+                action_frame,
+                text="⏹ Stop Camera",
+                command=self._stop_video,
+                height=UIConfig.BUTTON_HEIGHT,
+                corner_radius=UIConfig.BUTTON_CORNER,
+                fg_color=UIConfig.COLOR_DANGER,
+                hover_color="#ff7777",
+                text_color=UIConfig.COLOR_TEXT,
+                font=ctk.CTkFont(size=UIConfig.FONT_BUTTON, weight="bold")
+            )
+            self._btn_stop_recon.pack(side="left", fill="x", expand=True)
 
         # Always pack the slider frame to show the back button and active tool header
         self.slider_frame.pack(fill="both", expand=True)
